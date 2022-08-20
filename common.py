@@ -52,68 +52,82 @@ from sdv.tabular import CopulaGAN
 from sdv.tabular import TVAE
 from sdv.evaluation import evaluate 
 
-def build_model(constraints, train_data):
+def train_tabular_model(constraints, train_data):
+    print("Tabular Preset")
+    tabular_model = TabularPreset(name='FAST_ML', constraints=constraints)
+    tabular_model.fit(train_data)
+    return tabular_model
+
+def train_gaussiancopula_model(constraints, train_data):
+    print("Gaussian Copula")
+    gaussian_model = GaussianCopula(constraints=constraints)
+    gaussian_model.fit(train_data)
+    return gaussian_model
+
+def train_ctgan_model(constraints, train_data):
+    print("CTGAN")
+    ctgan_model = CTGAN(constraints=constraints, cuda=True)
+    ctgan_model.fit(train_data)
+    return ctgan_model
+
+def train_copulagan_model(constraints, train_data):
+    print("CopulaGAN")
+    copulagan_model = CopulaGAN(constraints=constraints, cuda=True)
+    copulagan_model.fit(train_data)
+    return copulagan_model
+
+def train_tvae_model(constraints, train_data):
+    print("TVAE")
+    tvae_model = TVAE(constraints=constraints, cuda=True)
+    tvae_model.fit(train_data)
+    return tvae_model
+
+def evaluat_models(constraints, train_data):
     score_dict = {}
 
     print("Strat training ...")
-    # Tabular
-    print("Tabular Preset")
-    tabular_model = TabularPreset(
-        name='FAST_ML',
-        constraints=constraints)
-    tabular_model.fit(train_data)
-    tabular_sample = tabular_model.sample(len(train_data))
-
-    # GaussianCopula
-    print("Gaussian Copula")
-    gaussian_model = GaussianCopula(
-        constraints=constraints)
-    gaussian_model.fit(train_data)
-    gaussian_sample = gaussian_model.sample(len(train_data))
-
-    # CTGAN
-    print("CTGAN")
-    ctgan_model = CTGAN(
-        constraints=constraints, 
-        cuda=True)
-    ctgan_model.fit(train_data)
-    ctgan_sample = ctgan_model.sample(len(train_data))
-
-    # CopulaGAN
-    print("CopulaGAN")
-    copulagan_model = CopulaGAN(
-        constraints=constraints, 
-        cuda=True)
-    copulagan_model.fit(train_data)
-    copulagan_sample = copulagan_model.sample(len(train_data))
-
-    # TVAE
-    print("TVAE")
-    tvae_model = TVAE(
-        constraints=constraints, 
-        cuda=True)
-    tvae_model.fit(train_data)
-    tvae_sample = tvae_model.sample(len(train_data))
+    tabular_sample = train_tabular_model(constraints, train_data).sample(len(train_data))
+    gaussioncopula_sample = train_gaussiancopula_model(constraints, train_data).sample(len(train_data))
+    ctgan_sample = train_ctgan_model(constraints, train_data).sample(len(train_data))
+    copulagan_sample = train_copulagan_model(constraints, train_data).sample(len(train_data))
+    tvae_sample = train_tvae_model(constraints, train_data).sample(len(train_data))
     print("Training finished!")
 
     print("Strat evaluating ...")
-    tabular_score = evaluate(tabular_sample, train_data)
-    gaussian_score = evaluate(gaussian_sample, train_data)
-    ctgan_score = evaluate(ctgan_sample, train_data)
-    copulagan_score = evaluate(copulagan_sample, train_data)
-    tvae_score = evaluate(tvae_sample, train_data)
+    score_dict['tabular'] = evaluate(tabular_sample, train_data)
+    score_dict['gaussiancopula'] = evaluate(gaussioncopula_sample, train_data)
+    score_dict['ctgan'] = evaluate(ctgan_sample, train_data)
+    score_dict['copulagan'] = evaluate(copulagan_sample, train_data)
+    score_dict['tvae'] = evaluate(tvae_sample, train_data)
     print("Evaluating finished!")
 
-    score_dict['tabular'] = (tabular_model, tabular_score)
-    score_dict['gaussian_copula'] = (gaussian_model, gaussian_score)
-    score_dict['ctgan'] = (ctgan_model, ctgan_score)
-    score_dict['copulagan'] = (copulagan_model, copulagan_score)
-    score_dict['tvae'] = (tvae_model, tvae_score)
+    return  sorted(score_dict.items(), key=lambda item: item[1]).pop()[0]
 
-    best_model = sorted(score_dict.items(), key=lambda item: item[1][1]).pop()
-    print("The best_model is " + best_model[0] + ", evaluation score is " + str(best_model[1][1]))
+    
+def build_model(constraints, train_data):
+    best_model_name = evaluat_models(constraints, train_data)
+    if best_model_name == 'tabular':
+        best_model = train_tabular_model(constraints, train_data)
+    elif best_model_name == 'gaussiancopula':
+        best_model = train_gaussiancopula_model(constraints, train_data)
+    elif best_model_name == 'copulagan':
+        best_model = train_gaussiancopula_model(constraints, train_data)
+    elif best_model_name == 'tvae':
+        best_model = train_gaussiancopula_model(constraints, train_data)
+    else:
+        best_model = train_ctgan_model(constraints, train_data)
+    
+    sample = best_model.sample(len(train_data))
+    kl_continuous_score = evaluate(sample, train_data, metrics=['ContinuousKLDivergence'])
+    kl_discrete_score = evaluate(sample, train_data, metrics=['DiscreteKLDivergence'])
+    total_score = evaluate(sample, train_data)
 
-    return best_model[1][0]
+    print("The best model is: " + best_model_name)
+    print("The ContinuousKL_score is: " + str(kl_continuous_score))
+    print("The DiscreteKL_score is: " + str(kl_discrete_score))
+    print("The total score is: " + str(total_score))
+
+    return best_model
 
 
 # Save and Load model
