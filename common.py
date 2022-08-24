@@ -44,6 +44,12 @@ def time_process(df, early_col_name, late_col_name, second_early_col_name=None):
         return np.NaN
 
 
+# Discretisation
+def data_discretisation(column, n):
+    return pd.cut(column, n).astype(str)
+
+
+
 # Train and choose models
 from sdv.lite import TabularPreset
 from sdv.tabular import GaussianCopula
@@ -82,7 +88,10 @@ def train_tvae_model(constraints, train_data):
     tvae_model.fit(train_data)
     return tvae_model
 
-def evaluat_models(constraints, train_data):
+def model_evaluation(sample, realdata):
+    return evaluate(sample, realdata, metrics=['CSTest', 'KSTest', 'ContinuousKLDivergence', 'DiscreteKLDivergence'])
+
+def evaluate_models(constraints, train_data):
     score_dict = {}
 
     print("Strat training ...")
@@ -94,18 +103,19 @@ def evaluat_models(constraints, train_data):
     print("Training finished!")
 
     print("Strat evaluating ...")
-    score_dict['tabular'] = evaluate(tabular_sample, train_data)
-    score_dict['gaussiancopula'] = evaluate(gaussioncopula_sample, train_data)
-    score_dict['ctgan'] = evaluate(ctgan_sample, train_data)
-    score_dict['copulagan'] = evaluate(copulagan_sample, train_data)
-    score_dict['tvae'] = evaluate(tvae_sample, train_data)
+    score_dict['tabular'] = model_evaluation(tabular_sample, train_data)
+    score_dict['gaussiancopula'] = model_evaluation(gaussioncopula_sample, train_data)
+    score_dict['ctgan'] = model_evaluation(ctgan_sample, train_data)
+    score_dict['copulagan'] = model_evaluation(copulagan_sample, train_data)
+    score_dict['tvae'] = model_evaluation(tvae_sample, train_data)
     print("Evaluating finished!")
 
     return  sorted(score_dict.items(), key=lambda item: item[1]).pop()[0]
 
     
 def build_model(constraints, train_data):
-    best_model_name = evaluat_models(constraints, train_data)
+    # Get the name of best model, re-fit the model again
+    best_model_name = evaluate_models(constraints, train_data)
     if best_model_name == 'tabular':
         best_model = train_tabular_model(constraints, train_data)
     elif best_model_name == 'gaussiancopula':
@@ -117,6 +127,7 @@ def build_model(constraints, train_data):
     else:
         best_model = train_ctgan_model(constraints, train_data)
     
+    # Evaluating
     sample = best_model.sample(len(train_data))
     kl_continuous_score = evaluate(sample, train_data, metrics=['ContinuousKLDivergence'])
     kl_discrete_score = evaluate(sample, train_data, metrics=['DiscreteKLDivergence'])
@@ -142,3 +153,19 @@ def load_model(date_load_path):
     with open(date_load_path, 'rb') as f:
         model = cloudpickle.load(f)
     return model
+
+
+import uuid
+def uuid_generate(n):
+    uuid_list = []
+    for i in range(n):
+        uuid_list.append(str(uuid.uuid4()))
+    return uuid_list
+
+
+import names
+def name_generate(n):
+    names_list=[]
+    for i in range(n):
+        names_list.append(names.get_full_name())
+    return names_list
